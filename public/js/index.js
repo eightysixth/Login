@@ -1,3 +1,17 @@
-const {ipcRenderer} = require('electron')
+const {ipcRenderer} = require("electron")
 
-ipcRenderer.send("wipe-session-data")
+function promptLogIn(){
+    ipcRenderer.send('prompt-login')
+}
+
+ipcRenderer.on("logged-in", (event, arg) =>{
+    // Arg will be user's data
+    console.log(arg)
+})
+
+ipcRenderer.on('login-failed', (event, arg)=>{
+    console.log('loginfailed', arg)
+    if (arg.errCode != null){
+        console.log(arg.msg)
+    }
+})

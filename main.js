@@ -4,7 +4,6 @@ const http = require('http')
 const {OAuth2Client} = require('google-auth-library')
 const querystring = require('querystring')
 
-
 const whiteListedUrls = ["https://accounts.google.com"]
 
 let win, authWindow
@@ -45,11 +44,12 @@ function closeAuthWindow(){
 async function authorizeClient(){
     try{
         const oAuth2Client = await getAuthenticatedClient();
-        console.log("Waiting on window")
+        // console.log("Waiting on window")
         // request to google 
-        const url = 'https://www.googleapis.com/plus/v1/people?query=pizza'
-        const res = await oAuth2Client.request({url})
-        console.log(res.data);
+        // const url = 'https://www.googleapis.com/oauth2/v2/userinfo'
+        // const res = await oAuth2Client.request({url})
+        // console.log(res.data);
+        // console.log(oAuth2Client);
         return oAuth2Client;
     } catch (e){
         console.log(e)
@@ -62,13 +62,13 @@ function getAuthenticatedClient(){
         const oAuth2Client = new OAuth2Client({
             clientId: '65786425587-lvo40a1ujqao6umjn7cdi11n1epetmok.apps.googleusercontent.com',
             redirectUri: 'http://localhost:3000/oauth2callback',
-            hosted_domain: 'isss.ca'
         });
 
         // Generate the url that will be used
         const authorizeURL = oAuth2Client.generateAuthUrl({
             access_type: 'offline',
-            scope: 'email,https://www.googleapis.com/auth/plus.me'
+            scope: 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/plus.me https://www.googleapis.com/auth/userinfo.profile',
+            hd: 'isss.ca'
         });
 
         // Open http server to accept oauth callback
@@ -103,16 +103,47 @@ ipcMain.on('wipe-session-data',(event, arg)=>{
     clearStorage(arg); console.log("[main.js]: Cleared session data!")
 })
 
+ipcMain.on('prompt-login', (event, arg)=>{
+    authorizeClient().then((oAuth2Client)=>{
+        const url = 'https://www.googleapis.com/oauth2/v2/userinfo?fields=email%2Cfamily_name%2Cgender%2Cgiven_name%2Chd%2Cid%2Clink%2Clocale%2Cname%2Cpicture'
+        const res = oAuth2Client.request({url})
+
+        res.then((result) =>{
+            const usr = result.data
+            if (usr.hd === "isss.ca"){
+                event.sender.send("logged-in", {email: usr.email, name: usr.name, img: usr.picture})
+            } else {
+                console.log("Failed to log in")
+                event.sender.send("login-failed", {errCode: 0, msg:"Invalid email. Please use '@isss.ca'"})
+            }
+            
+        })       
+        
+    }).catch((err)=>{
+        console.log("[main.js] Error: ", err)
+        console.log("Failed to log in")
+        event.sender.send("login-failed", {errCode: 1, msg:"Failed to authorize client"})
+    })
+
+    
+})
+
+ipcMain.on('ping',()=>{
+    console.log("PONG")
+})
 // To do. close all un-authorized windows
 app.on('browser-window-created', (event, window)=>{
     console.log('[main.js]: New_Window: ' +window.getTitle() + ' was created')
 })
 
+
+//---- MAIN FUNCTION ----//
+
 function main(){
     // Main Window
     win = createWindow({
         width: 450,
-        height: 450,
+        height: 500,
         frame: true, resizable:false, backgroundColor: "#2e2c29",
         autoHideMenuBar: true,
         webPreferences:{
@@ -129,7 +160,7 @@ function main(){
     win.loadFile('index.html')
     win.webContents.openDevTools()   
 
-    const oAuth2Client = authorizeClient()
+    // const oAuth2Client = authorizeClient()
     console.log("Done main")
 }
 

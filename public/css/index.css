@@ -1,0 +1,19 @@
+body {background-color: #ffffff}
+
+.hidden {
+    visibility: hidden
+}
+
+
+/*---- GOOGLE LOGIN BUTTON ----*/
+.login-btn {
+    cursor: pointer;
+}
+
+.login-btn:hover {
+    content:url("../img/google_login/focus.png");
+}
+
+.login-btn:active {
+    content:url("../img/google_login/pressed.png");
+}

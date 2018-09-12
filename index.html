@@ -4,15 +4,45 @@
       <meta charset="UTF-8">
       <title>Hello World!</title>
       <link rel="stylesheet" href="./node_modules/bootstrap/dist/css/bootstrap.min.css">
+      <link rel="stylesheet" href="./public/css/index.css">
+      <script src="./public/js/index.js"></script>
     </head>
     <body>
-      <h1>Hello World!</h1>
-      We are using node <script>document.write(process.versions.node)</script>,
-      Chrome <script>document.write(process.versions.chrome)</script>,
-      and Electron <script>document.write(process.versions.electron)</script>.
+
+      <div class="container">
+        <img class="logo" src="./public/img/logo_black_s.png">
+      </div>
+
+      <div class="container pt-5 pb-0">
+        <h1 class="jumbotron-heading text-center">Office Hours Login</h1>
+        <p class="text-center">
+          Sign in using your <b>@isss.ca</b> account.
+        </p>
+      </div>
+
+      <div class="container pl-0 py-0">
+        <!-- <img src="./public/img/google_login/normal.png"> -->
+        <p class="text-center">
+          <img class="login-btn" src="./public/img/google_login/normal.png" onclick="promptLogIn()">
+        </p>
+      </div>
+
+      <div class="container px-0 py-0" id="login-alert-container">
+          <div id="login-alert" class="alert alert-danger hidden" role="alert">
+              Please sign in using a @isss.ca account
+          </div>
+      </div>
+
+      <!-- <div class="container pull-down"> -->
+      <div class="footer"></div>
+          <button type="button" class="btn btn-light float-right" onclick="getSchedule()">View Schedule</button>
+          <button type="button" class="btn btn-light float-right" onclick="getSchedule()">Logout</button>
+          <button type="button" class="btn btn-light float-right" onclick="getConsole()">Console</button>
+      </div>
+
       
     </body>
-    <script src="./public/js/index.js"></script>
+    
     <script src="./node_modules/bootstrap/dist/js/bootstrap.min.js"></script>
   </html>
 
