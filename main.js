@@ -6,7 +6,7 @@ const querystring = require('querystring')
 
 const whiteListedUrls = ["https://accounts.google.com"]
 
-let win, authWindow
+let win, authWindow, server
 
 function createWindow(options){
     // Create a window
@@ -18,19 +18,28 @@ function clearStorage(arg){
     session.defaultSession.clearStorageData()
 }
 
-function openAuthWindow(authorizeURL){
+function openAuthWindow(authorizeURL, oAuth2Client){
     authWindow = createWindow({
         width: 600,
         height: 600,
         autoHideMenuBar: true,
         webPreferences:{
             nodeIntegration: false
-        }
+        },
+        frame: false
     });
     authWindow.loadURL(authorizeURL)
     authWindow.setMenu(null)
     authWindow.on('closed', ()=>{authWindow = null})
-    authWindow.webContents.openDevTools()       
+    authWindow.webContents.openDevTools()    
+    console.log(oAuth2Client)   
+
+    authWindow.on('close',()=>{
+        if (server != null){
+            server.close();
+            server = null;
+        }
+    })
 }
 
 function closeAuthWindow(){
@@ -72,13 +81,14 @@ function getAuthenticatedClient(){
         });
 
         // Open http server to accept oauth callback
-        const server = http.createServer(async(req, res) => {
+        server = http.createServer(async(req, res) => {
             if (req.url.indexOf('/oauth2callback') > -1){
                 // accquire code from querystring, close the webserver
                 const qs = querystring.parse(url.parse(req.url).query)
                 console.log(`Code is ${qs.code}`)
                 res.end("Authentication successful! Please close this window");
-                server.close()
+                server.close();
+                server = null;
                 closeAuthWindow()
 
                 // We have the code, use that to acquire tokens.
@@ -86,6 +96,8 @@ function getAuthenticatedClient(){
                 // Set credentials on oAuth2Client
                 oAuth2Client.setCredentials(r.tokens)
                 console.info('Tokens acquired.')
+
+                // Everything is done. No need for server to stay up
                 resolve(oAuth2Client)
             }
         }).listen(3000, ()=>{
@@ -104,28 +116,29 @@ ipcMain.on('wipe-session-data',(event, arg)=>{
 })
 
 ipcMain.on('prompt-login', (event, arg)=>{
-    authorizeClient().then((oAuth2Client)=>{
-        const url = 'https://www.googleapis.com/oauth2/v2/userinfo?fields=email%2Cfamily_name%2Cgender%2Cgiven_name%2Chd%2Cid%2Clink%2Clocale%2Cname%2Cpicture'
-        const res = oAuth2Client.request({url})
+    if (authWindow != null){
+        authWindow.focus()
+        return;
+    } else {
+        authorizeClient().then((oAuth2Client)=>{
+            const url = 'https://www.googleapis.com/oauth2/v2/userinfo?fields=email%2Cfamily_name%2Cgender%2Cgiven_name%2Chd%2Cid%2Clink%2Clocale%2Cname%2Cpicture'
+            const res = oAuth2Client.request({url})
 
-        res.then((result) =>{
-            const usr = result.data
-            if (usr.hd === "isss.ca"){
-                event.sender.send("logged-in", {email: usr.email, name: usr.name, img: usr.picture})
-            } else {
-                console.log("Failed to log in")
-                event.sender.send("login-failed", {errCode: 0, msg:"Invalid email. Please use '@isss.ca'"})
-            }
-            
-        })       
-        
-    }).catch((err)=>{
-        console.log("[main.js] Error: ", err)
-        console.log("Failed to log in")
-        event.sender.send("login-failed", {errCode: 1, msg:"Failed to authorize client"})
-    })
-
-    
+            res.then((result) =>{
+                const usr = result.data
+                if (usr.hd === "isss.ca"){
+                    event.sender.send("logged-in", {email: usr.email, name: usr.name, img: usr.picture})
+                } else {
+                    console.log("Failed to log in")
+                    event.sender.send("login-failed", {errCode: 0, msg:"Invalid email. Please use '@isss.ca'"})
+                }
+            })       
+        }).catch((err)=>{
+            console.log("[main.js] Error: ", err)
+            console.log("Failed to log in")
+            event.sender.send("login-failed", {errCode: 1, msg:"Failed to authorize client"})
+        })
+    }   
 })
 
 ipcMain.on('ping',()=>{
@@ -145,6 +158,7 @@ function main(){
         width: 450,
         height: 500,
         frame: true, resizable:false, backgroundColor: "#2e2c29",
+        icon: "/img/icon.png",
         autoHideMenuBar: true,
         webPreferences:{
             nodeIntegration: true

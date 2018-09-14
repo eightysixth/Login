@@ -17,3 +17,10 @@ body {background-color: #ffffff}
 .login-btn:active {
     content:url("../img/google_login/pressed.png");
 }
+
+#footer {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    background: #000000;
+}
