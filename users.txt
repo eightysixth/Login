@@ -1,0 +1,6 @@
+// FORMAT: @isss.ca email, position, name, @ualberta.ca, day, time
+
+outreach@isss.ca,Creative Outreach,Prachi Shah,pkshah@ualberta.ca
+outreach@isss.ca,Creative Outreach,Allison Bihari,bihari@ualberta.ca
+execadmin@isss.ca,Exectutive Administration,Anoosha Khan,anoosha@ualberta.ca
+ 
