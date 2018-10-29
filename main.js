@@ -195,7 +195,7 @@ ipcMain.on('prompt-login', (event, arg)=>{
 
             res.then((result) =>{
                 const usr = result.data
-                // Make sure user isn't logging in from unauthorized org.
+                // Make sure user isn't logging in from unauthorized account.
                 if (usr.hd === "isss.ca" || usr.hd === "ualberta.ca"){
                     var isMember = false;
                     // Make sure user is valid.
@@ -206,7 +206,7 @@ ipcMain.on('prompt-login', (event, arg)=>{
                             loginsDb.insert({createdAt: Date(), type:'failed-login', email: usr.email})
                         } else {
                             event.sender.send("logged-in", {email: usr.email, name: usr.name, img: usr.picture})
-                            loginsDb.insert({createdAt: Date(), type:'login', email: usr.email})                            
+                            loginsDb.insert({createdAt: Date(), type:'login', email: usr.email})// Inserting twice?                            
                         }
                     })
                     for (var i = 0; i < userInfo.length; i++){
