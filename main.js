@@ -1,4 +1,4 @@
-const {app, BrowserWindow, ipcMain, session, Menu, Tray, Notification} = require('electron')
+const {app, BrowserWindow, ipcMain, session, Menu, Tray, Notification, dialog, nativeImage} = require('electron')
 const path = require('path')
 const url = require('url');
 const http = require('http');
@@ -28,7 +28,7 @@ var loginsDb = new Datastore({filename: loginDBFile,
     autoload: true,})
 var usersDb = new Datastore({inMemoryOnly: true})
 
-let win, authWindow, server, userInfo, scheduleWin
+let win, authWindow, server, userInfo, scheduleWin, curUser
 
 // Locate the event log file.
 // fs.openSync("./data/config.json")
@@ -52,27 +52,33 @@ function loadRawGist(gistID, fileName){
     })
 }
 
+function loadUsersDB(usersDb,userInfo){
+    for (var i = 0; i < userInfo.length; i++){
+        var curUser = userInfo[i]
+        var usrType = "usr"
+        // Check if user is admin or not.
+        if (curUser[4] != null && curUser[4] == 'admin'){
+            usrType = 'admin'
+        }
+        var dbData = {_id: curUser[3], type:usrType, position: curUser[1],name: curUser[2], isss_email: curUser[0]}
+        usersDb.insert(dbData)
+        console.log(dbData)
+    }
+}
 
 loadRawGist(usersGist, 'users.json').then(function(data){
-    // userInfo = data;
-    // console.log("Loaded user info", data)
-    data = JSON.parse(data)
-    userInfo = data;
-    resolve(data)
+    userInfo = JSON.parse(data)
+    loadUsersDB(usersDb, userInfo)
 }).catch((reason)=>{
+    console.log(reason)
     // Load data from the cached file
     console.log("Loading from cache")
     fs.readFile('./data/users.json', (err, data)=>{
         if (err){console.log("Failed to load data")}
         else{userInfo = JSON.parse(data)}
     })
-}).then((data)=>{
-    for (var i = 0; i < userInfo.length; i++){
-        var curUser = userInfo[i]
-        usersDb.insert({_id: curUser[0], type:'usr', position: curUser[1],name: curUser[2], u_email: curUser[3]})
-    }
-})
-
+    loadUsersDB(usersDb, userInfo)
+}).then(()=>{loadUsersDB(usersDb, userInfo)})
 
 
 function createWindow(options){
@@ -82,7 +88,7 @@ function createWindow(options){
 }
 
 function clearStorage(arg){
-    session.defaultSession.clearStorageData()
+    // session.defaultSession.clearStorageData()
     console.log("[main.js]: Cleared session data!")
 }
 
@@ -94,7 +100,8 @@ function openAuthWindow(authorizeURL, oAuth2Client){
         webPreferences:{
             nodeIntegration: false
         },
-        frame: false,
+        frame: true,
+        parent: win,
     });
     authWindow.loadURL(authorizeURL)
     authWindow.setMenu(null)
@@ -122,12 +129,6 @@ function closeAuthWindow(){
 async function authorizeClient(){
     try{
         const oAuth2Client = await getAuthenticatedClient();
-        // console.log("Waiting on window")
-        // request to google 
-        // const url = 'https://www.googleapis.com/oauth2/v2/userinfo'
-        // const res = await oAuth2Client.request({url})
-        // console.log(res.data);
-        // console.log(oAuth2Client);
         return oAuth2Client;
     } catch (e){
         console.log(e)
@@ -146,7 +147,7 @@ function getAuthenticatedClient(){
         const authorizeURL = oAuth2Client.generateAuthUrl({
             access_type: 'offline',
             scope: 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/plus.me https://www.googleapis.com/auth/userinfo.profile',
-            hd: 'isss.ca'
+            hd: 'ualberta.ca'
         });
 
         // Open http server to accept oauth callback
@@ -154,7 +155,7 @@ function getAuthenticatedClient(){
             if (req.url.indexOf('/oauth2callback') > -1){
                 // accquire code from querystring, close the webserver
                 const qs = querystring.parse(url.parse(req.url).query)
-                console.log(`Code is ${qs.code}`)
+                // console.log(`Code is ${qs.code}`)
                 res.end("Authentication successful! Please close this window");
                 server.close();
                 server = null;
@@ -196,34 +197,33 @@ ipcMain.on('prompt-login', (event, arg)=>{
             res.then((result) =>{
                 const usr = result.data
                 // Make sure user isn't logging in from unauthorized org.
+                // console.log("User logged in with HD: ", usr.hd)
                 if (usr.hd === "isss.ca" || usr.hd === "ualberta.ca"){
+                    
                     var isMember = false;
                     // Make sure user is valid.
                     usersDb.find({_id:usr.email}, function(err, docs){
                         if (docs.length == 0){
                             // No such user found
-                            event.sender.send("login-failed", {errCode: 1, msg:"Login failed. You're not a registered user"})
+                            event.sender.send("login-failed", {errCode: "non-registered", msg:"Logged in, but you're not a registered user"})
                             loginsDb.insert({createdAt: Date(), type:'failed-login', email: usr.email})
                         } else {
+                            // Check if user type is admin.
+                            if (docs[0].type == 'admin'){
+                                // Send command to open admin window.
+                                adminPrompt({img: usr.picture, name: usr.name, email: usr.email})
+                            }
+                            console.log("THIS IS DOCS: ", docs)
                             event.sender.send("logged-in", {email: usr.email, name: usr.name, img: usr.picture})
                             loginsDb.insert({createdAt: Date(), type:'login', email: usr.email})                            
                         }
                     })
-                    for (var i = 0; i < userInfo.length; i++){
-                        var user = userInfo[i]
-                        if (user[0] === usr.email || user[3] === usr.email){
-                            isMember = true;
-                            event.sender.send("logged-in", {email: usr.email, name: usr.name, img: usr.picture})
-                            loginsDb.insert({createdAt: Date(), email: usr.email})
-                            break;
-                        }
-                    }
                     if (!isMember){
-                             
+                        loginsDb.insert({createdAt: Date(), type:'non-registered'})                             
                     }
                 } else {
                     console.log("Failed to log in")
-                    event.sender.send("login-failed", {errCode: 0, msg:"Login failed. Please use your '@isss.ca' email"})
+                    event.sender.send("login-failed", {errCode: "invalid-email", msg:"Login failed. Please use your '@ualberta.ca' email"})
                     loginsDb.insert({createdAt: Date(), type:'failed-login', email: usr.email})
                 }
             })       
@@ -235,6 +235,8 @@ ipcMain.on('prompt-login', (event, arg)=>{
     }   
 })
 
+
+
 ipcMain.on('ping',()=>{
     console.log("PONG")
 })
@@ -245,6 +247,12 @@ ipcMain.on('show-schedule', ()=>{
         scheduleWin.focus()
     }
 })
+
+function closeChildWindows(parent){
+    parent.getChildWindows().forEach((child)=>{
+        child.close();
+    })
+}
 // To do. close all un-authorized windows
 app.on('browser-window-created', (event, window)=>{
     console.log('[main.js]: New_Window: ' +window.getTitle() + ' was created')
@@ -271,6 +279,41 @@ function createScheduleWindow(){
     })
 }
 
+function createAdminWindow(usrEmail){
+    adminWin = createWindow({
+        title: "ISSS",
+        width: 1032,
+        height: 494,
+        frame: true, resizable:false,
+        autoHideMenuBar: true,
+        parent: win,
+    })
+    adminWin.setMenu(null)
+    adminWin.loadFile('panel.html')
+
+    // Log usr opened Admin console
+    loginsDb.insert({createdAt: Date(), type:'panel-open',email:usrEmail})
+    adminWin.on('close', function (event){
+        loginsDb.insert({createdAt: Date(), type:'panel-close',email:usrEmail})
+    })
+    return adminWin
+}
+
+function adminPrompt(usr){
+    // console.log("Prompt admin for: ", usr)
+    prompt = dialog.showMessageBox({
+        type: "question",
+        buttons: ["Yes", "No"],
+        defaultId: 0,
+        message: usr.name + ", would you like to open the Admin panel?",
+    })
+    console.log("USER RESPONDED!, Response is ", prompt)
+    if (prompt == 0){
+        // Open admin panel
+        createAdminWindow(usr.email);
+    }
+}
+
 //---- MAIN FUNCTION ----//
 
 function main(){
@@ -292,10 +335,13 @@ function main(){
         if(!app.isQuitting){
             event.preventDefault()
             win.hide()
-            closeAuthWindow()
+            // Close all open child windows
+            closeChildWindows(win)
+            // closeAuthWindow()
         } else {
             win = null
-            closeAuthWindow()
+            closeChildWindows(win)
+            // closeAuthWindow()
         }
         return false;       
     })

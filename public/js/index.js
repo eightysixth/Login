@@ -33,6 +33,7 @@ ipcRenderer.on("logged-in", (event, arg) =>{
     // Arg will be user's data
     notifyLoginStatus(true, '<img id="user-img"class="img-circle" width="32" height="32" src="'+arg.img+'">'+
                             " Logged in <b>" + arg.name + "</b>")
+    ipcRenderer.send('wipe-session-data')
 })
 
 ipcRenderer.on('login-failed', (event, arg)=>{
@@ -41,4 +42,5 @@ ipcRenderer.on('login-failed', (event, arg)=>{
         notifyLoginStatus(false, arg.msg)
         console.log(arg.msg)
     }
+    ipcRenderer.send('wipe-session-data')
 })
