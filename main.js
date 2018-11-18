@@ -215,7 +215,7 @@ ipcMain.on('prompt-login', (event, arg)=>{
                             }
                             console.log("THIS IS DOCS: ", docs)
                             event.sender.send("logged-in", {email: usr.email, name: usr.name, img: usr.picture})
-                            loginsDb.insert({createdAt: Date(), type:'login', email: usr.email})                            
+                            loginsDb.insert({createdAt: Date(), type:'login', email: usr.email})// Inserting twice?                            
                         }
                     })
                     if (!isMember){
